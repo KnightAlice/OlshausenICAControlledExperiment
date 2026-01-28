@@ -77,9 +77,53 @@ class blur_beta_pool:
             I = I.unsqueeze(0)
         elif I.dim() == 3:
             _, H, W = I.shape
-            
+
         k = int(1 + self.beta * min(H, W) / 20)
         if k % 2 == 0:
             k += 1
 
         return F.avg_pool2d(I, kernel_size=(k,k), stride=1, padding=k//2).squeeze(0)
+    
+
+class blur_beta_resample:
+    """
+    Edge-blur via downsample + upsample(bicubic).
+    beta >= 0 controls blur strength.
+    scale = 1.0 / (1.0 + self.beta)  # <1.0
+    """
+
+    def __init__(self, beta=0.0, mode='bicubic'):
+        self.beta = beta
+        self.mode = mode
+
+    def __call__(self, I):
+
+        if self.beta <= 0:
+            return I
+
+        # shape handling
+        squeeze = False
+        if I.dim() == 2:
+            H, W = I.shape
+            I = I.unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
+            squeeze = True
+        elif I.dim() == 3:
+            C, H, W = I.shape
+            I = I.unsqueeze(0)               # [1,C,H,W]
+        else:
+            raise ValueError("I must be 2D or 3D tensor")
+
+        scale = 1.0 / (1.0 + self.beta)  # <1.0
+        H_down = max(1, int(H * scale))
+        W_down = max(1, int(W * scale))
+
+        # downsample: area mode → averaging
+        I_down = F.interpolate(I, size=(H_down, W_down), mode='area')
+
+        # upsample back to original: bicubic / bilinear
+        I_blur = F.interpolate(I_down, size=(H, W), mode=self.mode, align_corners=False)
+
+        if squeeze:
+            return I_blur.squeeze(0).squeeze(0)
+        else:
+            return I_blur.squeeze(0)
