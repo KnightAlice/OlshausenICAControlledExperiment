@@ -1,3 +1,7 @@
 NaturalImage.mat
 /datasets/
 /__pycache__/
+/patches/
+outputs*
+/outputs/
+*.pth

@@ -21,7 +21,7 @@ def sample_patches(images_np, patch_h, patch_w, batch_size, device="cpu"):
 
     patches = np.empty((batch_size, patch_h, patch_w), dtype=np.float32)
     for i in range(batch_size):
-        im = images_np[:, :, img_ids[i]]
+        im = images_np[:, :, img_ids[i]] 
         patches[i] = im[ys[i]:ys[i] + patch_h, xs[i]:xs[i] + patch_w]
 
     patch_np = patches.reshape(batch_size, -1)

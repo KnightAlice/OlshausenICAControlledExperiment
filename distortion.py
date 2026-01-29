@@ -127,3 +127,132 @@ class blur_beta_resample:
             return I_blur.squeeze(0).squeeze(0)
         else:
             return I_blur.squeeze(0)
+        
+class blur_beta_resample_2:
+    """
+    Edge-blur via upsample + downsample.
+    beta >= 0 controls blur strength.
+    up_factor = 1.0 + beta  # >1.0
+    """
+
+    def __init__(self, beta=0.0, mode='bicubic'):
+        self.beta = beta
+        self.mode = mode
+
+    def __call__(self, I):
+
+        if self.beta <= 0:
+            return I
+
+        # -------- shape handling --------
+        squeeze = False
+        if I.dim() == 2:
+            H, W = I.shape
+            I = I.unsqueeze(0).unsqueeze(0)  # [1,1,H,W]
+            squeeze = True
+        elif I.dim() == 3:
+            C, H, W = I.shape
+            I = I.unsqueeze(0)               # [1,C,H,W]
+        else:
+            raise ValueError("I must be 2D or 3D tensor")
+
+        # -------- upsample --------
+        factor = 1.0 + self.beta
+        H_up = max(1, int(H * factor))
+        W_up = max(1, int(W * factor))
+
+        I_up = F.interpolate(
+            I,
+            size=(H_up, W_up),
+            mode='nearest',
+            align_corners=None
+        )
+
+        # -------- downsample (blur happens here) --------
+        I_blur = F.interpolate(I_up, size=(H, W), mode='area')
+
+        # -------- restore shape --------
+        if squeeze:
+            return I_blur.squeeze(0).squeeze(0)
+        else:
+            return I_blur.squeeze(0)
+        
+
+class GaussianBlur:
+    """
+    Gaussian blur for 2D/3D tensor image.
+
+    Args:
+        sigma: std of Gaussian
+        kernel_size: optional, auto-computed if None
+    """
+
+    def __init__(self, sigma=1.0, kernel_size=None):
+        self.sigma = sigma
+
+        if kernel_size is None:
+            # 常用经验公式
+            kernel_size = int(2 * round(3 * sigma) + 1)
+
+        self.kernel_size = kernel_size
+        self.kernel_1d = self._create_kernel()
+
+    def _create_kernel(self):
+        k = self.kernel_size
+        sigma = self.sigma
+
+        ax = torch.arange(k) - k // 2
+        kernel = torch.exp(-0.5 * (ax / sigma) ** 2)
+        kernel /= kernel.sum()
+
+        return kernel
+
+    def __call__(self, I):
+
+        if self.sigma <= 0:
+            return I
+
+        # ---------- shape handling ----------
+        squeeze = False
+
+        if I.dim() == 2:
+            H, W = I.shape
+            I = I.unsqueeze(0).unsqueeze(0)
+            squeeze = True
+
+        elif I.dim() == 3:
+            C, H, W = I.shape
+            I = I.unsqueeze(0)
+
+        else:
+            raise ValueError("I must be 2D or 3D tensor")
+
+        C = I.shape[1]
+        k = self.kernel_size
+
+        # ---------- build separable kernel ----------
+        k1d = self.kernel_1d.to(I.device, I.dtype)
+
+        kernel_x = k1d.view(1,1,1,k).repeat(C,1,1,1)
+        kernel_y = k1d.view(1,1,k,1).repeat(C,1,1,1)
+
+        # ---------- apply blur ----------
+        padding = k // 2
+
+        I = F.conv2d(I, kernel_x, padding=(0,padding), groups=C)
+        I = F.conv2d(I, kernel_y, padding=(padding,0), groups=C)
+
+        # ---------- restore shape ----------
+        if squeeze:
+            return I.squeeze(0).squeeze(0)
+        else:
+            return I.squeeze(0)
+        
+class random_angle_composition():
+    def __init__(self):
+        pass
+
+    def __call__(self, I):
+        angle = np.random.uniform(0, 360)
+        I_rot = transforms.functional.rotate(I, angle, resample=False, expand=False, center=None, fill=0)
+        return I_rot

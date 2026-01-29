@@ -13,10 +13,9 @@ os.makedirs('patches', exist_ok=True)
 mat_images = sio.loadmat('./datasets/IMAGES.mat')
 imgs = mat_images['IMAGES']
 
-o_imgsize = 84
 batch_size = 256
 n_iters =500
-imgsize = 9
+imgsize = 16#9
 
 class Times3:
     def __call__(self, x):
@@ -63,6 +62,6 @@ for n, imgs in tqdm.tqdm(enumerate(dataloader)):
         patches.append(x)
 
 patches = np.array(patches)
-patches = patches/ (patches.std() + 1e-8)
-patches = patches*3
-np.save('patches/patches_std_times3.npy', patches)
+#patches = patches/ (abs(patches).max() + 1e-8)
+
+np.save('patches/patches_16x16.npy', patches)
